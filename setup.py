@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import os
 import re
 from setuptools import setup, find_packages
@@ -29,6 +30,7 @@ and report together, find reports by mimetypes/name/python objects.
     license="GPL License",
     version=get_version(),
     packages=find_packages(),
+    python_requires='>=3',
     install_requires=[
         "Genshi >= 0.5",
         "lxml >= 2.0"

@@ -7,3 +7,7 @@ creating plugins for them.
 
 Aeroo Library also provides a report repository allowing you to link python objects
 and report together, find reports by mimetype/name/python object.
+
+Installation
+=========
+#> sudo ./setup.py install

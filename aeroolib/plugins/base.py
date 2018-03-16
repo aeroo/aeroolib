@@ -35,7 +35,7 @@
 
 __metaclass__ = type
 
-from cStringIO import OutputType
+from io import StringIO
 
 import genshi.core
 from genshi.template import NewTextTemplate, MarkupTemplate

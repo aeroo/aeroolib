@@ -38,19 +38,12 @@
 __metaclass__ = type
 
 import re
-try:
-    # requires python 2.5+
-    from hashlib import md5
-except ImportError:
-    from md5 import md5
+from hashlib import md5
 
 import time
 import urllib
 import zipfile
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
+from io import StringIO, BytesIO
 from copy import copy, deepcopy
 
 
@@ -95,8 +88,8 @@ STYLES = 'styles.xml'
 output_encode = genshi.output.encode
 EtreeElement = lxml.etree.Element
 
-TAB = "[%s]" % md5("&#x9;").hexdigest()
-NEW_LINE = "[%s]" % md5("&#xA;").hexdigest()
+TAB = "[%s]" % md5(b"&#x9;").hexdigest()
+NEW_LINE = "[%s]" % md5(b"&#xA;").hexdigest()
 
 # A note regarding OpenDocument namespaces:
 #
@@ -216,7 +209,7 @@ def update_py_attrs(node, value):
 def _filter(val):
     if type(val)==bool:
         return ''
-    elif isinstance(val, (str, unicode)):
+    elif isinstance(val, str):
         return val.replace('\t', TAB).replace('\r\n', NEW_LINE).replace('\n', NEW_LINE)
     else:
         return val
@@ -229,8 +222,9 @@ def _hyperlink(namespaces):
 
 class Template(MarkupTemplate):
 
-    def __init__(self, source, serializer, filepath=None, styles=None, filename=None, loader=None,
-                 encoding=None, lookup='strict', allow_exec=True):
+    def __init__(self, source, serializer, filepath=None, styles=None,
+                filename=None, loader=None, encoding=None, lookup='strict',
+                allow_exec=True):
         self.namespaces = {}
         self.inner_docs = []
         self.has_col_loop = False
@@ -259,7 +253,6 @@ class Template(MarkupTemplate):
             c_path, s_path = doc + '/content.xml', doc + '/styles.xml'
             content = zf.read(c_path)
             styles = zf.read(s_path)
-
             c_parsed = template._parse(self.insert_directives(content),
                                        encoding)
             s_parsed = template._parse(self.insert_directives(styles),
@@ -277,7 +270,7 @@ class Template(MarkupTemplate):
     def insert_directives(self, content):
         """adds the genshi directives, handle the images and the innerdocs.
         """
-        tree = lxml.etree.parse(StringIO(content))
+        tree = lxml.etree.parse(BytesIO(content))
         root = tree.getroot()
 
         # assign default/fake namespaces so that documents do not need to
@@ -305,7 +298,7 @@ class Template(MarkupTemplate):
         self._handle_hyperlinks(tree)
         self._handle_innerdocs(tree)
         self._escape_values(tree)
-        return StringIO(lxml.etree.tostring(tree))
+        return BytesIO(lxml.etree.tostring(tree))
 
     def _invert_style(self, tree):
         "inverts the text:a and text:span"
@@ -720,7 +713,7 @@ class Template(MarkupTemplate):
         "creates the AerooStream."
         #serializer = OOSerializer(self.filepath)
 
-        self.Serializer.new_oo = StringIO()
+        self.Serializer.new_oo = BytesIO()
         outzip = zipfile.ZipFile(self.Serializer.new_oo, 'w')
         self.Serializer.outzip = outzip
         kwargs['__aeroo_make_href'] = ImageHref(self.namespaces, outzip, self.Serializer.manifest, kwargs)
@@ -777,16 +770,16 @@ class DuplicateColumnHeaders(object):
 class Manifest(object):
 
     def __init__(self, content):
-        self.tree = lxml.etree.parse(StringIO(content))
+        self.tree = lxml.etree.parse(BytesIO(content))
         self.root = self.tree.getroot()
         self.namespaces = self.root.nsmap
         for el in filter(lambda child: child.tag=="{%s}file-entry" % self.namespaces['manifest'], self.root.iterchildren()):
-            if filter(lambda a: a[0]=='{%s}full-path' % self.namespaces['manifest'] and a[1].startswith("Thumbnails"), el.items()):
+            if list(filter(lambda a: a[0]=='{%s}full-path' % self.namespaces['manifest'] and a[1].startswith("Thumbnails"), el.items())):
                 self.root.remove(el)
 
     def __str__(self):
         return lxml.etree.tostring(self.tree, encoding='UTF-8',
-                                   xml_declaration=True)
+                                   xml_declaration=True).decode("utf-8") 
 
     def add_file_entry(self, path, mimetype=None):
         manifest_namespace = self.namespaces['manifest']
@@ -802,7 +795,7 @@ class Manifest(object):
 class Meta(object):
 
     def __init__(self, content):
-        self.tree = lxml.etree.parse(StringIO(content))
+        self.tree = lxml.etree.parse(BytesIO(content))
         self.root = self.tree.getroot()
         self.namespaces = self.root.nsmap
         self.meta_root = self.root.getchildren()[0]
@@ -811,7 +804,7 @@ class Meta(object):
 
     def __str__(self):
         return lxml.etree.tostring(self.tree, encoding='UTF-8',
-                                   xml_declaration=True)
+                                   xml_declaration=True).decode("utf-8") 
 
     def add_entry(self, tag_name, namespace, data=None, attribs={}):
         meta_namespace = self.namespaces['meta']
@@ -836,26 +829,25 @@ class Meta(object):
 class TStyle(object):
 
     def __init__(self, content):
-        self.tree = lxml.etree.parse(StringIO(content))
+        self.tree = lxml.etree.parse(BytesIO(content))
         self.root = self.tree.getroot()
         self.namespaces = self.root.nsmap
 
     def __str__(self):
         return lxml.etree.tostring(self.tree, encoding='UTF-8',
-                                   xml_declaration=True)
+                                   xml_declaration=True).decode("utf-8") 
 
 class TContent(object):
 
     def __init__(self, content):
-        self.tree = lxml.etree.parse(StringIO(content))
+        self.tree = lxml.etree.parse(BytesIO(content))
         self.root = self.tree.getroot()
         self.namespaces = self.root.nsmap
         ns = lxml.etree.FunctionNamespace(None)
 
     def __str__(self):
         return lxml.etree.tostring(self.tree, encoding='UTF-8',
-                                   xml_declaration=True)
-
+                                   xml_declaration=True).decode("UTF-8")
 
 class OOSerializer:
 
@@ -1132,12 +1124,17 @@ class OOSerializer:
                                                 namespaces=self.styles.namespaces)
             self._replace_style_by_attrib(new_styles, orig_styles, 'name', self.styles.namespaces['style'])
             ##### master-styles #####
-            new_master_page_styles = self.styles_new.root.xpath('//office:master-styles/style:master-page', namespaces=self.styles_new.namespaces)#[0]
-            orig_master_page_styles = self.styles.root.xpath('//office:master-styles/style:master-page', namespaces=self.styles.namespaces)#[0]
-            self._replace_style_by_attrib(new_master_page_styles, orig_master_page_styles, 'name', self.styles.namespaces['style'])
+            new_master_page_styles = self.styles_new.root.xpath('//office:master-styles/style:master-page', \
+                                        namespaces=self.styles_new.namespaces)
+            orig_master_page_styles = self.styles.root.xpath('//office:master-styles/style:master-page', \
+                                        namespaces=self.styles.namespaces)
+            self._replace_style_by_attrib(new_master_page_styles, orig_master_page_styles, 'name', \
+                                        self.styles.namespaces['style'])
             ##### automatic-styles #####
-            new_automatic_page_styles = self.styles_new.root.xpath('//office:automatic-styles/style:style', namespaces=self.styles_new.namespaces)#[0]
-            orig_automatic_page_styles = self.styles.root.xpath('//office:automatic-styles/style:style', namespaces=self.styles.namespaces)#[0]
+            new_automatic_page_styles = self.styles_new.root.xpath('//office:automatic-styles/style:style', \
+                                        namespaces=self.styles_new.namespaces)
+            orig_automatic_page_styles = self.styles.root.xpath('//office:automatic-styles/style:style', \
+                                        namespaces=self.styles.namespaces)
             if orig_automatic_page_styles:
                 self._replace_style_by_attrib(new_automatic_page_styles, orig_automatic_page_styles, 'name', self.styles.namespaces['style'])
             else:
@@ -1150,7 +1147,7 @@ class OOSerializer:
                                                 namespaces=self.styles.namespaces)
             self._replace_style_by_attrib(new_page_layout, orig_page_layout, 'name', self.styles.namespaces['style'])
             ###########################
-            self.styles_xml = str(self.styles)
+            self.styles_xml = str(self.styles).encode("UTF-8")
 
     def add_title(self, title):
         self.meta.add_entry('title', 'dc', title)
@@ -1175,7 +1172,6 @@ class OOSerializer:
 
     def _replace_style_by_attrib(self, node_list1, node_list2, name, namespace):
         for node1 in node_list1:
-            #curr_node = filter(lambda node: node.get('{%s}%s' % (namespace,name))==node1.get('{%s}%s' % (namespace,name)), node_list2)
             curr_node = None
             node_to_update = []
             for node2 in node_list2:
@@ -1184,7 +1180,6 @@ class OOSerializer:
                     node_to_update.append(node2)
                     break
             if curr_node is not None and curr_node.getchildren():
-                #curr_node=curr_node[0]
                 for child_node in curr_node.iterchildren():
                     curr_node.attrib.update(dict(node1.attrib))
                     orig_node = node1.find(child_node.tag)
@@ -1215,7 +1210,7 @@ class OOSerializer:
         now = time.localtime()[:6]
         outzip = self.outzip
         self.template.seek(0)
-        inzip = zipfile.ZipFile(StringIO(self.template.read()))
+        inzip = zipfile.ZipFile(BytesIO(self.template.read()))
         for f_info in inzip.infolist():
             if f_info.filename.startswith('ObjectReplacements'):
                 continue
@@ -1268,7 +1263,7 @@ class OOSerializer:
         inzip.close()
         outzip.close()
 
-        return self.new_oo is not None and self.new_oo or StringIO()
+        return self.new_oo is not None and self.new_oo or BytesIO()
 
 MIMETemplateLoader.add_factory('oo.org', Template)
 
